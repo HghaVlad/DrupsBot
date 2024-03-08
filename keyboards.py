@@ -1,5 +1,5 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, Message, CallbackQuery, InputMediaPhoto, LinkPreviewOptions
 from configparser import ConfigParser
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 config = ConfigParser()
 config.read("config.ini")
@@ -18,7 +18,8 @@ MainMenu.add(button1, button2, button3, button4, button5, button6, button7, butt
 
 MainMenuAdmin = InlineKeyboardMarkup(row_width=2)
 admin_panel_button = InlineKeyboardButton("Админ панель", callback_data="admin_panel_back")
-MainMenuAdmin.add(button1, button2, button3, button4, button5, button6, button7, button8, button9, admin_panel_button)
+MainMenuAdmin.add(button1, button2, button3, button4, button5, button6, button7, button8, button9)
+MainMenuAdmin.row(admin_panel_button)
 
 
 BackMenu = InlineKeyboardMarkup()
@@ -43,7 +44,6 @@ PurchaseColoursMenu = InlineKeyboardMarkup( row_width=1)
 blue_button = InlineKeyboardButton(text="Синий🔵", callback_data="colour_blue")
 black_button = InlineKeyboardButton(text="Чёрный⚫️", callback_data="colour_black")
 no_pozion_button = InlineKeyboardButton(text="Заказ не с Poizon", callback_data="colour_bo_poizon")
-# PurchaseColoursMenu.add("К прошлому этапу оформления")
 PurchaseColoursMenu.add(blue_button, black_button, no_pozion_button, back_step_button, menu_back_button)
 
 
@@ -62,6 +62,9 @@ PurchaseShipMenu.add(car_button, plane_button, back_step_button, menu_back_butto
 PurchaseEndMenu = InlineKeyboardMarkup(row_width=1)
 PurchaseEndMenu.add(button6, menu_back_button)
 
+CalculatorBackMenu = InlineKeyboardMarkup(row_width=1)
+CalculateButton = InlineKeyboardButton(text="Рассчитать еще", callback_data="calculator")
+CalculatorBackMenu.add(CalculateButton, menu_back_button)
 
 AdminPanelMenu = InlineKeyboardMarkup()
 yuan_rate_button = InlineKeyboardButton(text="Курс юаня", callback_data="admin_yuan")
