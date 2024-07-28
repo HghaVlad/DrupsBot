@@ -1,24 +1,21 @@
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, Message, CallbackQuery, InputMediaPhoto, LinkPreviewOptions
 from configparser import ConfigParser
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 config = ConfigParser()
 config.read("config.ini")
 
 MainMenu = InlineKeyboardMarkup(row_width=2)
-button1 = InlineKeyboardButton("Что такое POIZON?🧐", callback_data="poizon_is")
-button2 = InlineKeyboardButton("Почему Drups shipping?🤔", callback_data="drups_why")
-button3 = InlineKeyboardButton("Отзывы📑", url=config['BUTTONS']['reviews_link'])
-button4 = InlineKeyboardButton("Доставка📦", callback_data="shipping")
-button5 = InlineKeyboardButton("Курс юаня💹", callback_data="yuan_rate")
-button6 = InlineKeyboardButton("Связаться с менеджером👨‍💼", url=config['BUTTONS']['manager_link'])
-button7 = InlineKeyboardButton("Калькулятор✖️", callback_data="calculator")
-button8 = InlineKeyboardButton("Наши соц. сети🏠", callback_data="socials")
-button9 = InlineKeyboardButton("Оформить заказ🛒", callback_data="purchase")
-MainMenu.add(button1, button2, button3, button4, button5, button6, button7, button8, button9)
+button1 = InlineKeyboardButton("Отзывы📑", url=config['BUTTONS']['reviews_link'])
+button2 = InlineKeyboardButton("Курс юаня💹", callback_data="yuan_rate")
+button3 = InlineKeyboardButton("Связаться с менеджером👨‍💼", url=config['BUTTONS']['manager_link'])
+button4 = InlineKeyboardButton("Калькулятор✖️", callback_data="calculator")
+button5 = InlineKeyboardButton("Наши соц. сети🏠", callback_data="socials")
+button6 = InlineKeyboardButton("Наличие", url=config['BUTTONS']['stock_link'])
+MainMenu.add(button1, button2, button3, button4, button5, button6)
 
 MainMenuAdmin = InlineKeyboardMarkup(row_width=2)
 admin_panel_button = InlineKeyboardButton("Админ панель", callback_data="admin_panel_back")
-MainMenuAdmin.add(button1, button2, button3, button4, button5, button6, button7, button8, button9)
+MainMenuAdmin.add(button1, button2, button3, button4, button5, button6)
 MainMenuAdmin.row(admin_panel_button)
 
 
@@ -44,6 +41,7 @@ PurchaseColoursMenu = InlineKeyboardMarkup( row_width=1)
 blue_button = InlineKeyboardButton(text="Синий🔵", callback_data="colour_blue")
 black_button = InlineKeyboardButton(text="Чёрный⚫️", callback_data="colour_black")
 no_pozion_button = InlineKeyboardButton(text="Заказ не с Poizon", callback_data="colour_bo_poizon")
+# PurchaseColoursMenu.add("К прошлому этапу оформления")
 PurchaseColoursMenu.add(blue_button, black_button, no_pozion_button, back_step_button, menu_back_button)
 
 
@@ -80,3 +78,13 @@ YuanEditMenu.add(yuan_edit, admin_panel_back)
 PurchaseWayMenu = InlineKeyboardMarkup()
 way_edit = InlineKeyboardButton("Редактировать", callback_data="way_edit")
 PurchaseWayMenu.add(way_edit, admin_panel_back)
+
+
+CalculatorCategory = InlineKeyboardMarkup()
+light_shoes = InlineKeyboardButton(text="Лёгкая обувь", callback_data="light_shoes")
+heavy_shoes = InlineKeyboardButton(text="Тяжелая обувь", callback_data="heavy_shoes")
+jackets = InlineKeyboardButton(text="Куртки/пуховики", callback_data="jackets")
+tshirts = InlineKeyboardButton(text="Футболки/шорты", callback_data="tshirts")
+pants = InlineKeyboardButton(text="Брюки/худи", callback_data="pants")
+accessories = InlineKeyboardButton(text="Аксессуары", callback_data="accessories")
+CalculatorCategory.add(light_shoes, heavy_shoes, jackets, tshirts, pants, accessories, menu_back_button)

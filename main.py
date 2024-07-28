@@ -1,15 +1,16 @@
-from uuid import uuid4
-from configparser import ConfigParser
-import requests
 from telebot import TeleBot
-from telebot.types import Message, CallbackQuery, InputMediaPhoto
-from keyboards import MainMenu, SocialsButtons, BackMenu, PurchaseBackMenu, PurchaseBackStepMenu, \
-    PurchaseColoursMenu, PurchaseCategoryMenu, PurchaseEndMenu, PurchaseShipMenu, \
-    MainMenuAdmin, AdminPanelMenu, YuanEditMenu, PurchaseWayMenu, CalculatorBackMenu
+import requests
+from uuid import uuid4
+
+from configparser import ConfigParser
+from keyboards import Message, CallbackQuery, MainMenu, SocialsButtons, BackMenu, PurchaseBackMenu, \
+    PurchaseBackStepMenu, PurchaseColoursMenu, PurchaseCategoryMenu, PurchaseEndMenu, PurchaseShipMenu, \
+    MainMenuAdmin, AdminPanelMenu, YuanEditMenu, PurchaseWayMenu, InputMediaPhoto, CalculatorCategory
 from db import add_purchase, db_request, get_admins, new_value
 
 config = ConfigParser()
 config.read("config.ini")
+CATEGORY_TYPE_PRICE = {"light_shoes":115, "heavy_shoes": 150, "jackets": 110, "tshirts": 80, "pants": 100, "accessories": 80}
 user_data = {}
 
 bot = TeleBot(config['BOT']['bot_token'])
@@ -20,7 +21,7 @@ print("Bot started")
 @bot.message_handler(regexp="Вернутся в меню")
 def start_command(message: Message):
     admins = get_admins()
-
+    print(admins)
     if str(message.chat.id) in admins:
         with open(config['PHOTO']['welcome_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo, config['MESSAGES']['welcome_message'].format(
@@ -35,41 +36,36 @@ def start_command(message: Message):
 
 
 def calculator_yuan(message: Message):
-    if message.text.isdigit() and user_data[message.chat.id]['step'] == 10:
-        price = int(message.text) * float(db_request("yuan_rate"))
-        with open(config['PHOTO']['calculator2_photo'], "rb") as photo:
-            bot.send_photo(message.chat.id, photo, f"Цена товара без учёта доставки: {round(price, 3)}",
-                           reply_markup=CalculatorBackMenu)
-    elif user_data[message.chat.id]['step'] == 10:
+    if message.text.isdigit() and user_data[message.chat.id]['step'] == 12:
+        price = (int(message.text) * 1.05 + CATEGORY_TYPE_PRICE[user_data[message.chat.id]['category']]) * float(db_request("yuan_rate"))+ 1000
+        with open(config['PHOTO']['calculator3_photo'], "rb") as photo:
+            bot.send_photo(message.chat.id, photo, f"Сумма заказа: {round(price,3)} ₽\n{config['MESSAGES']['calculation3_message']}",
+                           reply_markup=BackMenu)
+    elif user_data[message.chat.id]['step'] == 12:
         bot.send_message(message.chat.id, "Введите цену целым числом", reply_markup=BackMenu)
         bot.register_next_step_handler(message, calculator_yuan)
 
 
 def admin_mailing(user_id, ship_price, first_name):
     for admin in get_admins():
-        message_text = config['MESSAGES']['mail_admin_message'].format(userid=user_id, first_name=first_name,
-                                                                       telegram=user_data[user_id]['telegram'],
-                                                                       link=user_data[user_id]['link'],
-                                                                       quantity=user_data[user_id]['quantity'],
-                                                                       size=user_data[user_id]['size'],
-                                                                       colour=user_data[user_id]['colour'],
-                                                                       category=user_data[user_id]['category'],
-                                                                       ship=user_data[user_id]['ship'],
-                                                                       price=user_data[user_id]['price'],
-                                                                       ship_price=round(ship_price, 3))
-
+        message_text = config['MESSAGES']['mail_admin_message'].format(userid=user_id, first_name=first_name, telegram=user_data[user_id]['telegram'],
+                        link=user_data[user_id]['link'], quantity=user_data[user_id]['quantity'],
+                        size=user_data[user_id]['size'], colour=user_data[user_id]['colour'],
+                        category=user_data[user_id]['category'], ship=user_data[user_id]['ship'],
+                        price=user_data[user_id]['price'], ship_price=round(ship_price, 3))
         requests.get(f"https://api.telegram.org/bot{config['BOT']['bot_adminmail_token']}/sendMessage?chat_id={admin}&parse_mode=HTML&text={message_text}")
-
+        #bot.send_message(admin, message_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(False))
         if user_data[user_id]['is_photo']:
             with open(user_data[user_id]['photo_path'], "rb") as photo:
                 bot.send_photo(user_id, photo, parse_mode="HTML")
 
-    add_purchase(user_id, first_name, user_data[user_id], ship_price)
+    add_purchase(user_id, first_name,user_data[user_id], ship_price)
 
 
 def purchase_start(message: Message):
     if "Вернутся в меню" in message.text:
         start_command(message)
+
     else:
         user_data.update({message.chat.id: {}})
         user_data[message.chat.id]['step'] = 1
@@ -88,7 +84,6 @@ def purchase_start(message: Message):
 def purchase_goods_links(message: Message):
     if "Вернутся в меню" in message.text:
         start_command(message)
-
     elif "К прошлому этапу оформления" in message.text:
         bot.send_message(message.chat.id, config['MESSAGES']['purchase1_message'], parse_mode="HTML",
                          reply_markup=PurchaseBackMenu)
@@ -139,8 +134,9 @@ def purchase_goods_size(message: Message):
 
         with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo,
-                           config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                           reply_markup=PurchaseColoursMenu)
+            config['MESSAGES']['purchase5_message'], parse_mode = 'HTML',
+            reply_markup = PurchaseColoursMenu)
+       # bot.register_next_step_handler(message, purchase_goods_photo)
 
 
 def purchase_goods_colours(message: Message):
@@ -169,20 +165,22 @@ def purchase_goods_colours(message: Message):
     elif user_data[message.chat.id]['step'] == 4:
         with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo,
-                           config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                           reply_markup=PurchaseColoursMenu)
+            config['MESSAGES']['purchase5_message'], parse_mode = 'HTML',
+            reply_markup = PurchaseColoursMenu)
+        #bot.register_next_step_handler(message, purchase_goods_colours)
 
 
 def purchase_goods_photo(message: Message):
+    print(message.content_type)
     if message.content_type == 'text':
         if "Вернутся в меню" in message.text:
             start_command(message)
         elif "К прошлому этапу оформления" in message.text:
             with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
                 bot.send_photo(message.chat.id, photo,
-                               config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                               reply_markup=PurchaseColoursMenu)
-
+                config['MESSAGES']['purchase5_message'], parse_mode = 'HTML',
+                reply_markup = PurchaseColoursMenu)
+            #bot.register_next_step_handler(message, purchase_goods_colours)
         elif user_data[message.chat.id]['step'] == 4:
             bot.send_message(message.chat.id, "Пожалуйста, отправьте фото файлом", parse_mode="HTML",
                              reply_markup=PurchaseBackStepMenu)
@@ -203,11 +201,13 @@ def purchase_goods_photo(message: Message):
                 bot.send_photo(message.chat.id, photo, config['MESSAGES']['purchase6_message'], parse_mode="HTML",
                                reply_markup=PurchaseCategoryMenu)
             bot.register_next_step_handler(message, purchase_goods_category)
-        except:
+        except Exception as e:
+            print(e)
             with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
                 bot.send_photo(message.chat.id, photo,
-                               config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                               reply_markup=PurchaseColoursMenu)
+                config['MESSAGES']['purchase5_message'], parse_mode = 'HTML',
+                reply_markup = PurchaseColoursMenu)
+            #bot.register_next_step_handler(message, purchase_goods_photo)
     elif user_data[message.chat.id]['step'] == 4:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте фото файлом", parse_mode="HTML",
                          reply_markup=PurchaseColoursMenu)
@@ -220,18 +220,16 @@ def purchase_goods_category(message: Message):
     elif "К прошлому этапу оформления" in message.text:
         with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo,
-                           config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                           reply_markup=PurchaseColoursMenu)
-
-    elif message.text in ["Обычный товар", "Хрупкий товар(в том числе техника)"] \
-            and user_data[message.chat.id]['step'] == 5:
+            config['MESSAGES']['purchase5_message'], parse_mode = 'HTML',
+            reply_markup = PurchaseColoursMenu)
+        #bot.register_next_step_handler(message, purchase_goods_colours)
+    elif message.text in ["Обычный товар", "Хрупкий товар(в том числе техника)"] and user_data[message.chat.id]['step'] == 5:
         user_data[message.chat.id]['step'] = 6
         user_data[message.chat.id]['category'] = message.text
         with open(config['PHOTO']['purchase5_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo, config['MESSAGES']['purchase7_message'], parse_mode="HTML",
-                           reply_markup=PurchaseShipMenu)
+                             reply_markup=PurchaseShipMenu)
         bot.register_next_step_handler(message, purchase_goods_ship)
-
     elif user_data[message.chat.id]['step'] == 5:
         bot.send_message(message.chat.id, "Пожалуйста выберите из предложенного списка", parse_mode='HTML',
                          reply_markup=PurchaseCategoryMenu)
@@ -241,21 +239,18 @@ def purchase_goods_category(message: Message):
 def purchase_goods_ship(message: Message):
     if "Вернутся в меню" in message.text:
         start_command(message)
-
     elif "К прошлому этапу оформления" in message.text:
         with open(config['PHOTO']['purchase3_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo, config['MESSAGES']['purchase6_message'], parse_mode="HTML",
                            reply_markup=PurchaseCategoryMenu)
         bot.register_next_step_handler(message, purchase_goods_category)
-
     elif message.text in ["Автомобиль(800р/кг) 🚚", "Самолёт(2500р/кг) 🛫"] and user_data[message.chat.id]['step'] == 6:
         user_data[message.chat.id]['step'] = 7
         user_data[message.chat.id]['ship'] = message.text
         with open(config['PHOTO']['purchase7_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo, config['MESSAGES']['purchase8_message'], parse_mode="HTML",
-                           reply_markup=PurchaseBackStepMenu)
+                            reply_markup=PurchaseBackStepMenu)
         bot.register_next_step_handler(message, purchase_goods_price)
-
     elif user_data[message.chat.id]['step'] == 6:
         bot.send_message(message.chat.id, "Пожалуйста выберите из предложенного списка", parse_mode='HTML',
                          reply_markup=PurchaseShipMenu)
@@ -268,25 +263,21 @@ def purchase_goods_price(message: Message):
     elif "К прошлому этапу оформления" in message.text:
         with open(config['PHOTO']['purchase5_photo'], "rb") as photo:
             bot.send_photo(message.chat.id, photo, config['MESSAGES']['purchase7_message'], parse_mode="HTML",
-                           reply_markup=PurchaseShipMenu)
+                             reply_markup=PurchaseShipMenu)
             bot.register_next_step_handler(message, purchase_goods_ship)
-
     elif message.text.isdigit() is False:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте цену целым числом", reply_markup=PurchaseBackStepMenu)
         bot.register_next_step_handler(message, purchase_goods_price)
     else:
         user_data[message.chat.id]['price'] = int(message.text)
+        print(user_data[message.chat.id])
+
         ship_price = user_data[message.chat.id]['price'] * float(db_request("yuan_rate"))
         message_text = config['MESSAGES']['purchase9_message'].format(telegram=user_data[message.chat.id]['telegram'],
-                                                                      link=user_data[message.chat.id]['link'],
-                                                                      quantity=user_data[message.chat.id]['quantity'],
-                                                                      size=user_data[message.chat.id]['size'],
-                                                                      colour=user_data[message.chat.id]['colour'],
-                                                                      category=user_data[message.chat.id]['category'],
-                                                                      ship=user_data[message.chat.id]['ship'],
-                                                                      price=user_data[message.chat.id]['price'],
-                                                                      ship_price=round(ship_price, 3),
-                                                                      purchase_way=db_request("purchase_way"))
+                        link=user_data[message.chat.id]['link'], quantity=user_data[message.chat.id]['quantity'],
+                        size=user_data[message.chat.id]['size'], colour=user_data[message.chat.id]['colour'],
+                        category=user_data[message.chat.id]['category'], ship=user_data[message.chat.id]['ship'],
+                        price=user_data[message.chat.id]['price'], ship_price=round(ship_price, 3), purchase_way=db_request("purchase_way"))
         if user_data[message.chat.id]['is_photo']:
             with open(user_data[message.chat.id]['photo_path'], "rb") as photo:
                 bot.send_photo(message.chat.id, photo, parse_mode="HTML")
@@ -321,45 +312,52 @@ def callback(call: CallbackQuery):
     if call.data == "poizon_is":
         with open(config['PHOTO']['poizon_is_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['poizon_is_message'], parse_mode="HTML",
-                           reply_markup=BackMenu)
-
+            reply_markup=BackMenu)
+            #bot.delete_message(call.message.chat.id, call.message.message_id)
     elif call.data == "drups_why":
         with open(config['PHOTO']['drups_why_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['drups_why_message'], parse_mode="HTML",
                            reply_markup=BackMenu)
-
+            #bot.delete_message(call.message.chat.id, call.message.message_id)
     elif call.data == "shipping":
         with open(config['PHOTO']['drups_ship_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['shipping_message'], parse_mode="HTML",
                            reply_markup=BackMenu)
-
+            #bot.delete_message(call.message.chat.id, call.message.message_id)
     elif call.data == "yuan_rate":
         with open(config['PHOTO']['yuan_rate_photo'], "rb") as photo:
             yuan = db_request("yuan_rate")
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['yuan_message'].format(
                 yuan_rate=yuan), parse_mode="HTML", reply_markup=BackMenu)
-
+            #bot.delete_message(call.message.chat.id, call.message.message_id)
     elif call.data == "socials":
         with open(config['PHOTO']['socials_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['socials_message'], parse_mode="HTML",
                            reply_markup=SocialsButtons)
-
+            #bot.delete_message(call.message.chat.id, call.message.message_id)
 
     elif call.data == 'calculator':
         user_data.update({call.message.chat.id: {"step": 10}})
         with open(config['PHOTO']['calculator_photo'], "rb") as photo:
-            bot.send_photo(call.message.chat.id, photo, "Ввдеите количество юаней, чтобы посчитать цену товара",
-                           reply_markup=BackMenu)
+            bot.send_photo(call.message.chat.id, photo, config["MESSAGES"]['calculation_message'], reply_markup=CalculatorCategory)
+
+    elif call.data in ["light_shoes", "heavy_shoes", "jackets", "tshirts", "pants", "accessories"]:
+        user_data.update({call.message.chat.id: {"step": 12, "category": call.data}})
+        with open(config['PHOTO']['calculator2_photo'], "rb") as photo:
+            bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['calculation2_message'], parse_mode="HTML",
+                           reply_markup=PurchaseBackMenu)
+            bot.delete_message(call.message.chat.id, call.message.message_id)
             bot.register_next_step_handler(call.message, calculator_yuan)
 
     elif call.data == "purchase":
         bot.send_message(call.message.chat.id, config['MESSAGES']['purchase1_message'], parse_mode="HTML",
                          reply_markup=PurchaseBackMenu)
+        #bot.delete_message(call.message.chat.id, call.message.message_id)
         bot.register_next_step_handler(call.message, purchase_start)
 
     elif call.data == 'backstep':
         step = user_data[call.message.chat.id]['step']
-
+        print(step)
         if step == 1:
             user_data[call.message.chat.id]['step'] = 0
             bot.send_message(call.message.chat.id, config['MESSAGES']['purchase1_message'], parse_mode="HTML",
@@ -389,7 +387,8 @@ def callback(call: CallbackQuery):
             user_data[call.message.chat.id]['step'] = 4
             with open(config['PHOTO']['purchase4_photo'], "rb") as photo:
                 bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase5_message'], parse_mode='HTML',
-                               reply_markup=PurchaseColoursMenu)
+                                 reply_markup=PurchaseColoursMenu)
+            #bot.register_next_step_handler(call.message, purchase_goods_photo)
         elif step == 6:
             user_data[call.message.chat.id]['step'] = 5
             with open(config['PHOTO']['purchase3_photo'], "rb") as photo:
@@ -400,13 +399,13 @@ def callback(call: CallbackQuery):
             user_data[call.message.chat.id]['step'] = 6
             with open(config['PHOTO']['purchase5_photo'], "rb") as photo:
                 bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase7_message'], parse_mode="HTML",
-                               reply_markup=PurchaseShipMenu)
+                                 reply_markup=PurchaseShipMenu)
             bot.register_next_step_handler(call.message, purchase_goods_ship)
         elif step == 8:
             user_data[call.message.chat.id]['step'] = 7
             with open(config['PHOTO']['purchase7_photo'], "rb") as photo:
                 bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase8_message'], parse_mode="HTML",
-                               reply_markup=PurchaseBackStepMenu)
+                                reply_markup=PurchaseBackStepMenu)
             bot.register_next_step_handler(call.message, purchase_goods_price)
 
     elif call.data == "colour_blue":
@@ -417,7 +416,7 @@ def callback(call: CallbackQuery):
         with open(config['PHOTO']['purchase3_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase6_message'], parse_mode="HTML",
                            reply_markup=PurchaseCategoryMenu)
-
+        #bot.register_next_step_handler(call.message, purchase_goods_category)
     elif call.data == 'colour_black':
         user_data[call.message.chat.id]['step'] = 5
         user_data[call.message.chat.id]['is_photo'] = False
@@ -426,7 +425,6 @@ def callback(call: CallbackQuery):
         with open(config['PHOTO']['purchase3_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase6_message'], parse_mode="HTML",
                            reply_markup=PurchaseCategoryMenu)
-
     elif call.data == "colour_bo_poizon":
         user_data[call.message.chat.id]['step'] = 5
         user_data[call.message.chat.id]['is_photo'] = False
@@ -441,29 +439,29 @@ def callback(call: CallbackQuery):
         user_data[call.message.chat.id]['category'] = "Обычный товар"
         with open(config['PHOTO']['purchase5_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase7_message'], parse_mode="HTML",
-                           reply_markup=PurchaseShipMenu)
+                             reply_markup=PurchaseShipMenu)
 
     elif call.data == "category_special":
         user_data[call.message.chat.id]['step'] = 6
         user_data[call.message.chat.id]['category'] = "Хрупкий товар(в том числе техника)"
         with open(config['PHOTO']['purchase5_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase7_message'], parse_mode="HTML",
-                           reply_markup=PurchaseShipMenu)
+                             reply_markup=PurchaseShipMenu)
+
 
     elif call.data == "ship_car":
         user_data[call.message.chat.id]['step'] = 7
         user_data[call.message.chat.id]['ship'] = "Автомобиль(800р/кг) 🚚"
         with open(config['PHOTO']['purchase7_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase8_message'], parse_mode="HTML",
-                           reply_markup=PurchaseBackStepMenu)
+                            reply_markup=PurchaseBackStepMenu)
         bot.register_next_step_handler(call.message, purchase_goods_price)
-
     elif call.data == "ship_plane":
         user_data[call.message.chat.id]['step'] = 7
         user_data[call.message.chat.id]['ship'] = "Самолёт(2500р/кг) 🛫"
         with open(config['PHOTO']['purchase7_photo'], "rb") as photo:
             bot.send_photo(call.message.chat.id, photo, config['MESSAGES']['purchase8_message'], parse_mode="HTML",
-                           reply_markup=PurchaseBackStepMenu)
+                            reply_markup=PurchaseBackStepMenu)
         bot.register_next_step_handler(call.message, purchase_goods_price)
 
     elif call.data == "menu_back":
@@ -477,7 +475,7 @@ def callback(call: CallbackQuery):
 
     elif call.data == "admin_way":
         purchase_way = db_request("purchase_way")
-        bot.send_message(call.message.chat.id, f"Текущий способ оплаты: {purchase_way}", reply_markup=PurchaseWayMenu)
+        bot.send_message(call.message.chat.id, f"Текущий способ оплаты: { purchase_way }", reply_markup=PurchaseWayMenu)
 
     elif call.data == "yuan_edit":
         bot.send_message(call.message.chat.id, "Введите актуальный курс:")
